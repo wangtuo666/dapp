@@ -1,5 +1,6 @@
 <template>
   <div class="payout">
+    <van-button size="small" @click="link" type="primary">登录</van-button>
     <p class="title">合约信息：</p>
     <div class="constrct-message">
       <div>
@@ -42,7 +43,7 @@ import { BWEaddress, BWEABI } from "../utils/BWE";
 import { onMounted, reactive, ref } from "vue";
 import { showNotify, Field } from "vant";
 import { ethers } from "ethers";
-import { Conctract } from "../assets/js/common";
+import { Conctract,providerfun } from "../assets/js/common";
 const form = reactive({
   amount: "",
   address: "",
@@ -52,10 +53,14 @@ let admin1Flag = ref(false);
 let admin2Flag = ref(false);
 
 onMounted(async () => {
+  
   getBalance();
   getFlag();
 });
-
+const link=async function(){
+  const [account] = await providerfun().send("eth_requestAccounts", []);
+  
+}
 const handleCopy = function () {
   const input = document.createElement("input"); // 创建input对象
   const testDiv = document.querySelector(".testDiv"); // 获取需要复制文字的容器

@@ -46,6 +46,7 @@ export  {
     getToken,
     removeToken,
     stringToHex,
-    stringToBool
+    stringToBool,
+    providerfun
 }
 
