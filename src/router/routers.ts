@@ -1,26 +1,18 @@
 const routes = [
     {
         path: '/',
-        redirect: '/adminpayout',
+        redirect: '/manage',
     },
     {
-        name: 'adminpayout',
-        path: '/adminpayout',
+        name: 'manage',
+        path: '/manage',
         meta: {
             title: '存款合约提现',
             permiss: '3',
         },
-        component: () => import('../views/adminpayout.vue')
+        component: () => import('../views/manage.vue')
     },
-    {
-        name: 'adminpayout2',
-        path: '/adminpayout2',
-        meta: {
-            title: '收款合约提现',
-            permiss: '3',
-        },
-        component: () => import('../views/adminpayout2.vue')
-    },
+
 
 
 ];
