@@ -1,10 +1,11 @@
 import { ethers } from "ethers";
-// import { Toast } from "vant";
+import { showToast } from "vant";
 import {setToken,getToken} from "../assets/js/common";
 import router from "../router";
 
 export default {
   checkHash: async function (txHash:any) {
+    showToast('loading...')
     let checkHash = false;
     const provider = new ethers.providers.JsonRpcProvider(
       "https://bsc.nodereal.io"

@@ -1,39 +1,44 @@
 <template>
   <div class="payout">
-    <van-button
-      style="margin: 10px 20px"
-      size="small"
-      @click="link"
-      type="primary"
-      >连接钱包</van-button
-    >
-    <van-cell-group inset>
-      <van-field
-        v-model="form.user"
-        center
-        clearable
-        placeholder="请输入用户信息"
+    <div style="background-color: #fff; margin: 10px; border-radius: 5px">
+      <van-button style="width: 100%;margin: 10px 0 0;" size="small" @click="transferBWEtoWallet" type="primary"
+        >benchmarking</van-button
       >
-        <template #button>
-          <van-button size="small" @click="select" type="primary"
-            >查询</van-button
-          >
-        </template>
-      </van-field>
-    </van-cell-group>
-
-    <ul>
-      <li v-for="(item, index) in listArr" :key="index">
-        <span>{{ item.id }}</span>
-        <van-button
-          size="small"
-          v-if="item.redemptionStatus == false"
-          @click="shuhui(item)"
-          type="primary"
-          >赎回</van-button
+      <div
+        style="
+          display: flex;
+          align-items: center;
+          justify-content: space-around;
+          margin: 10px 20px;
+        "
+      >
+        <van-button size="small" @click="link" type="primary">{{
+          userStatus == 0 ? "Connect wallet" : "Disconnect"
+        }}</van-button>
+        <span>{{
+          userAddress.slice(0, 9) + "..." + userAddress.slice(-4)
+        }}</span>
+        <van-button size="small" @click="select" type="primary"
+          >Query orders</van-button
         >
-      </li>
-    </ul>
+      </div>
+
+      <ul>
+        <li v-for="(item, index) in listArr" :key="index">
+          <span>orderID：{{ item.id }}</span>
+          <span>need：{{ item.bb.toFixed(2) }} bwe</span>
+          <van-button v-if="item.redemptionStatus == false"  size="small" @click="shuhui(item)" type="primary">{{
+            item.redemptionStatus == false ? "redemption" : "Redeemed"
+          }}</van-button>
+          <span style="color: red;" v-if="item.redemptionStatus == true" > Redeemed </span>
+        </li>
+      </ul>
+      <van-overlay :show="show" @click="show.value = false">
+        <div class="wrapper" @click.stop>
+          <van-loading type="spinner" />
+        </div>
+      </van-overlay>
+    </div>
   </div>
 </template>
 
@@ -44,27 +49,78 @@ import { onMounted, reactive, ref } from "vue";
 import { showNotify, Field } from "vant";
 import { ethers } from "ethers";
 import { Conctract, providerfun } from "../assets/js/common";
-import checkHash from "../utils/checkHash";
+
 const form = reactive({
   user: "",
 });
 let listArr = reactive([]);
-
+let userAddress = ref("");
+let show = ref(false);
+let userStatus = ref(0);
 onMounted(async () => {
   await link();
 });
-const link = async function () {
+
+const transferBWEtoWallet = async function () {
   try {
-    const [account] = await providerfun().send("eth_requestAccounts", []);
-    showNotify({ type: "success", message: "连接钱包成功" });
+    const manageConctract = await Conctract(manageaddress, manageABI);
+    manageConctract.transferBWEtoWallet().then((res) => {
+      showNotify({ type: "danger", message: "success" });
+    });
   } catch {
-    showNotify({ type: "success", message: "连接钱包失败" });
+    showNotify({ type: "danger", message: "fail" });
+  }
+};
+const checkHash = async function (txHash) {
+  show.value = true;
+  let checkHash = false;
+  const provider = new ethers.providers.JsonRpcProvider(
+    "https://bsc.nodereal.io"
+  );
+  for (var i = 0; i < 15; i++) {
+    await provider
+      .getTransactionReceipt(txHash)
+      .then((receipt) => {
+        console.log(receipt);
+        if (receipt && receipt.status === 1) {
+          console.log("交易成功！", receipt);
+          checkHash = true;
+          show.value = false;
+        } else {
+          console.log("交易失败或仍在等待确认。");
+        }
+      })
+      .catch((error) => {
+        console.log(error);
+      });
+    if (checkHash) {
+      break;
+    }
+  }
+  return checkHash;
+};
+
+const link = async function () {
+  if (userStatus.value == 0) {
+    try {
+      const [account] = await providerfun().send("eth_requestAccounts", []);
+      userAddress.value = account;
+      userStatus.value = 1;
+      showNotify({ type: "success", message: "Successfully connected wallet" });
+      sessionStorage.setItem("user", account);
+    } catch {
+      showNotify({ type: "success", message: "Failed to connect to wallet" });
+    }
+  } else {
+    userStatus.value = 0;
+    sessionStorage.removeItem("user");
   }
 };
 
 const select = async function () {
   const manageConctract = await Conctract(manageaddress, manageABI);
-  manageConctract.getUserOrders(form.user).then((res) => {
+  // console.log(userAddress);
+  manageConctract.getUserOrders(userAddress.value).then((res) => {
     if (res.length <= 0) {
       return;
     }
@@ -72,16 +128,18 @@ const select = async function () {
     res.map(async (element) => {
       await manageConctract
         .getOrderDetails(parseInt(element._hex))
-        .then((res2) => {
+        .then(async (res2) => {
+          console.log(res2);
+          const result = await manageConctract.calculateRedemption(Number(parseInt(res2[0]._hex)));
+          let bb = Number(parseInt(result) / 1e18) + 0.1;
           var tt = {
             id: Number(parseInt(res2[0]._hex)),
+            bb:bb,
             redemptionStatus: res2.redemptionStatus,
           };
           listArr.push(tt);
         });
     });
-
-    sessionStorage.setItem("user", form.user);
   });
 };
 
@@ -89,9 +147,8 @@ const shuhui = async function (item) {
   try {
     const manageConctract = await Conctract(manageaddress, manageABI);
     const BWEConctract = await Conctract(BWEaddress, BWEABI);
-    const BWEbalance = await BWEConctract.balanceOf(
-      sessionStorage.getItem("user")
-    );
+    const BWEbalance = await BWEConctract.balanceOf(userAddress.value);
+
     const result = await manageConctract.calculateRedemption(item.id);
     let bb = Number(parseInt(result) / 1e18) + 0.1;
     if (!(parseInt(BWEbalance) / 1e18 >= bb)) {
@@ -99,16 +156,17 @@ const shuhui = async function (item) {
       return;
     }
     const allowance = await BWEConctract.allowance(
-      sessionStorage.getItem("user"),
+      userAddress.value,
       manageaddress
     );
     const approbalance = allowance.toString() / 1e18;
     if (approbalance >= bb && item.redemptionStatus == false) {
       const redeem = await manageConctract.redeem(item.id + "").then((res) => {
-        checkHash.checkHash(res.hash).then((ffff) => {
+        checkHash(res.hash).then((ffff) => {
           if (ffff) {
-            showNotify({ type: "success", message: "赎回成功" });
-            select();
+            showNotify({ type: "success", message: "Success" });
+            item.redemptionStatus=true
+            
           }
         });
       });
@@ -117,25 +175,25 @@ const shuhui = async function (item) {
 
     if (parseInt(result) > 0) {
       const BWEapprove = await BWEConctract.approve(
-        contractAddress,
+        manageaddress,
         ethers.utils.parseEther(bb + "")
       );
-      checkHash.checkHash(BWEapprove.hash).then(async (ttttt) => {
+      checkHash(BWEapprove.hash).then(async (ttttt) => {
         if (ttttt) {
           const redeem = await manageConctract
             .redeem(item.id + "")
             .then((res) => {
-              checkHash.checkHash(res.hash).then((ffff) => {
+              checkHash(res.hash).then((ffff) => {
                 if (ffff) {
-                  showNotify({ type: "success", message: "赎回成功" });
-                  select();
+                  showNotify({ type: "success", message: "Success" });
+                  item.redemptionStatus=true
                 }
               });
             });
         }
       });
     } else {
-      showNotify({ type: "danger", message: "赎回失败" });
+      showNotify({ type: "danger", message: "fail" });
     }
   } catch (error) {
     showNotify({ type: "danger", message: "提交失败" });
@@ -188,5 +246,17 @@ ul {
     padding: 10px 0;
     box-sizing: border-box;
   }
+}
+.wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.block {
+  width: 120px;
+  height: 120px;
+  background-color: #fff;
 }
 </style>
