@@ -65,7 +65,7 @@ const transferBWEtoWallet = async function () {
   try {
     const manageConctract = await Conctract(manageaddress, manageABI);
     manageConctract.transferBWEtoWallet().then((res) => {
-      showNotify({ type: "danger", message: "success" });
+      showNotify({ type: "success", message: "success" });
     });
   } catch {
     showNotify({ type: "danger", message: "fail" });
